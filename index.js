@@ -1,51 +1,46 @@
 const express = require("express");
-const multer = require("multer");
-const SftpClient = require("ssh2-sftp-client");
+const fs = require("fs");
+const route = require("./route");
 
 const app = express();
-const upload = multer({ dest: "uploads/" }); // local temp storage
+app.use(express.json());
 
-// RTS SFTP config
-const sftpConfig = {
-  host: "ftps.rtsfinancial.com",
-  port: 22,
-  username: "101212REC",
-  password: "1+1PECuBTvQMiUUt5qBv",
-  algorithms: { serverHostKey: ["rsa-sha2-256", "rsa-sha2-512"] }
-};
-
-async function testSftpConnection() {
-  const sftp = new SftpClient();
-  try {
-    await sftp.connect(sftpConfig);
-    console.log("SFTP connection successful ✅");
-    const files = await sftp.list('.');
-    console.log("Files in root directory:", files);
-  } catch (err) {
-    console.error("SFTP connection error:", err);
-  }
+const dotenv = require("dotenv");
+const envFile = process.env.NODE_ENV === "production" ? ".env.prod" : ".env.local";
+if (fs.existsSync(envFile)) {
+  dotenv.config({ path: envFile });
+} else {
+  console.warn(`⚠️ Env file ${envFile} not found!`);
 }
 
+const PORT = process.env.PORT || 3000;
+console.log("Running in:", process.env.NODE_ENV);
+console.log("Port:", PORT);
 
-app.post("/upload", upload.single("file"), async (req, res) => {
-  const sftp = new SftpClient();
-  try {
-    await sftp.connect(sftpConfig);
-
-    const localPath = req.file.path;
-    const remotePath = `/inbox/${req.file.originalname}`;
-
-    await sftp.put(localPath, remotePath);
-
-    await sftp.end();
-    res.json({ success: true, message: "File uploaded to RTS SFTP ✅" });
-  } catch (err) {
-    console.error("SFTP Upload error:", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+//Middleware to log requests
+app.use((req, res, next) => {
+  //log date in PST format
+  const date = new Date();
+  const options = { timeZone: 'America/Los_Angeles', hour12: false };
+  const dateString = date.toLocaleString('en-US', options);
+  console.log(`${dateString} ${req.ip}, ${req.hostname} ${req.url} ${req.method}`);
+  next();
 });
 
-app.listen(3000, () => {
-  console.log("EC2 Airtable-SFTP bridge running on port 3000");
-  testSftpConnection();
+app.use("/",  route);
+
+//Route not found
+app.use((req, res, next) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong' });
+});
+
+app.listen(PORT, () => {
+  console.log("🚀 Airtable → RTS Integration running on port", PORT);
 });

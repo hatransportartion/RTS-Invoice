@@ -30,7 +30,7 @@ const uploadSingleLoad = async (load, sftp, csvWriter) => {
 // 
         // console.log("LocalPath:", localPath);
 
-        // await sftp.put(pdfBuffer, `/${invoiceNumber}.pdf`);
+        await sftp.put(pdfBuffer, `/${invoiceNumber}.pdf`);
         console.log(`✅ Uploaded ${invoiceNumber}`);
 
         const USERNAME = process.env.RTS_USERNAME || "";
